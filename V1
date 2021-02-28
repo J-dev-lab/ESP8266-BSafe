@@ -1,0 +1,120 @@
+
+#include "ESP8266WiFi.h"
+#include <Wire.h>  // Only needed for Arduino 1.6.5 and earlier
+#include "heltec.h" // alias for `#include "SSD1306Wire.h"`
+
+const int RSSI_MAX =-45;// define maximum strength of signal in dBm
+const int RSSI_MIN =-55;// define minimum strength of signal in dBm
+
+int count =0;
+int scanDelayTime = 0;
+int wiFiDisplayTime = 0;
+int Progress = 0;
+int dBm_1 = -70;
+int dBm_2 = -70;
+int dBm_avg = -70;
+int buzzer = 3;
+
+void setup() {
+  // Setting Baudrate
+  Serial.begin(115200);
+  // Defining buzzer pins
+  digitalWrite(buzzer, LOW);
+  pinMode(buzzer, OUTPUT); // Set buzzer - pin 6 as an output
+  digitalWrite(buzzer,LOW);
+   // Set WiFi to station mode
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();//disconnect from an AP if it was previously connected
+  // Initialise OLED
+  Heltec.begin(true /*DisplayEnable Enable*/, true /*Serial Enable*/);
+  Heltec.display->flipScreenVertically();
+  Heltec.display->setFont(ArialMT_Plain_10);
+  Serial.println();
+  // Set up open WiFi AP
+  Serial.print("Setting soft-AP ... ");
+  boolean result = WiFi.softAP("Cov 2");
+  if(result == true)
+  {
+    Serial.println("Ready");
+  }
+  else
+  {
+    Serial.println("Failed!");
+  }
+}
+
+
+
+
+void loop() {
+
+// WiFi.scanNetworks will return the number of networks found
+  int n = WiFi.scanNetworks();
+   //Heltec.display->clear();// clear previous values from screen
+   Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
+   Heltec.display->setFont(ArialMT_Plain_10);
+   //Heltec.display->drawString(0, 0, "Scan done");
+ 
+  if (n == 0) {
+    Heltec.display->clear();
+    Heltec.display->drawString(0, 0, "No WIFI found");   
+  } else {
+    //lcd.setCursor(0,1);
+    //lcd.print(n);
+    //lcd.print( " AP found");
+    
+    //Heltec.display->clear();
+    //Heltec.display->drawString(0, 0, "AP found"); 
+    for (int i = 0; i < n; ++i) {
+      if(WiFi.SSID(i) == "Cov 1"){
+      //Serial.println(WiFi.SSID(i));
+      Heltec.display->clear();
+      dBm_avg = (dBm_1 + dBm_2 + WiFi.RSSI(i))/3;
+      dBm_2 = dBm_1;
+      dBm_1 = WiFi.RSSI(i);
+      Heltec.display-> drawString(0, 0, String(dBm_avg)); 
+      //Heltec.display-> drawString(0, 0, String(WiFi.RSSI(i))); 
+      Progress = dBmtoPercentage(dBm_avg);
+      Serial.print("dBm average: ");
+      Serial.print(String(dBm_avg));
+      Serial.print('\n');
+      Serial.print("Progress: ");
+      Serial.print(String(Progress));
+      Serial.print('\n');
+      
+      Heltec.display -> drawProgressBar(20, 10, 100, 20, Progress);
+      };
+      if (Progress == 100){digitalWrite(buzzer,HIGH);}
+      else {digitalWrite(buzzer,LOW);};
+
+      delay(wiFiDisplayTime);
+      Heltec.display -> display();
+    }
+  }  
+
+       
+  delay(scanDelayTime); 
+  //Serial.printf("Stations connected = %d\n", WiFi.softAPgetStationNum());
+  
+}// loop end
+ 
+
+int dBmtoPercentage(int dBm)
+{
+  int quality;
+    if(dBm <= RSSI_MIN)
+    {
+        quality = 0;
+    }
+    else if(dBm >= RSSI_MAX)
+    {  
+        quality = 100;
+    }
+    else
+    {
+        
+        quality = 100 - 100*(abs(dBm)-abs(RSSI_MAX))/(abs(RSSI_MIN) - abs(RSSI_MAX));
+   }
+
+     return quality;
+}//dBmtoPercentage
